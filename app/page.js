@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import zindigiLogo from "../public/zindgi logo.png";
+import zindigiLogo from "../public/zindgi logo.webp";
 import alfalahLogo from "../public/alfalah.png";
 import jazzcashLogo from "../public/jazzcash.png";
 import easypaisaLogo from "../public/easypaisa.svg";
@@ -72,39 +71,20 @@ function BankMark({ bank, heightClass, className = "" }) {
   );
 }
 
-const ZIGZAG_TEETH = 64;
-
-function buildZigzagPoints(edge) {
-  // "top": peaks point up and away from the card, base sits on the card edge
-  // "bottom": peaks point down and away from the card, base sits on the card edge
-  const outer = edge === "top" ? 0 : 1;
-  const inner = edge === "top" ? 1 : 0;
-  const points = [];
-  for (let i = 0; i <= ZIGZAG_TEETH; i++) {
-    points.push(`${i},${i % 2 === 0 ? outer : inner}`);
-  }
-  return points.join(" ");
-}
-
 // A fine, low-amplitude stitched line rather than a bold filled band, so it
 // reads as a subtle ticket-perforation accent instead of drawing attention.
+// Uses a plain CSS background gradient (not SVG/canvas) for reliable
+// rendering across browsers and screen densities.
 function ZigzagBorder({ color, edge, className = "" }) {
+  const angle = edge === "top" ? 135 : 45;
   return (
-    <svg
+    <div
       className={`absolute left-0 right-0 w-full h-2 ${className}`}
-      viewBox={`0 0 ${ZIGZAG_TEETH} 1`}
-      preserveAspectRatio="none"
-    >
-      <polyline
-        points={buildZigzagPoints(edge)}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.25"
-        vectorEffect="non-scaling-stroke"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
+      style={{
+        background: `linear-gradient(${angle}deg, transparent 3px, ${color} 3px, ${color} 5px, transparent 5px) repeat-x`,
+        backgroundSize: "12px 10px",
+      }}
+    />
   );
 }
 
@@ -131,19 +111,7 @@ function formatDateTime(date) {
   return `${day} ${month}, ${year}  |  ${hoursPadded}:${minutes} ${ampm}`;
 }
 
-function downloadBlob(blob, fileName) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
 export default function Home() {
-  const receiptRef = useRef(null);
   const bankMenuRef = useRef(null);
 
   const [step, setStep] = useState("form");
@@ -154,9 +122,6 @@ export default function Home() {
   const [accountNumber, setAccountNumber] = useState("58405001931073");
   const [amount, setAmount] = useState("10000");
   const [trxDate, setTrxDate] = useState(() => new Date(2026, 6, 28, 21, 48));
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-
   const selectedBank = BANKS.find((bank) => bank.id === bankId) || BANKS[0];
   const { whole, decimals } = formatAmountParts(amount);
   const isFormValid =
@@ -188,56 +153,9 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSave = async () => {
-    setSaveError("");
-    setIsSaving(true);
-
-    const now = new Date();
-    flushSync(() => {
-      setTrxDate(now);
-    });
-
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const canvas = await html2canvas(receiptRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-      });
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setIsSaving(false);
-          setSaveError("Could not generate image. Please try again.");
-          return;
-        }
-
-        const fileName = `zindigi-receipt-${now.getTime()}.png`;
-        const file = new File([blob], fileName, { type: "image/png" });
-
-        try {
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await Promise.race([
-              navigator.share({ files: [file], title: "Transfer Receipt" }),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("share timed out")), 20000)
-              ),
-            ]);
-          } else {
-            downloadBlob(blob, fileName);
-          }
-        } catch {
-          downloadBlob(blob, fileName);
-        } finally {
-          setIsSaving(false);
-        }
-      }, "image/png");
-    } catch (err) {
-      console.error(err);
-      setIsSaving(false);
-      setSaveError("Something went wrong while saving the image.");
-    }
+  const handleNext = () => {
+    setTrxDate(new Date());
+    setStep("receipt");
   };
 
   if (step === "form") {
@@ -421,7 +339,7 @@ export default function Home() {
           <div className="max-w-md mx-auto">
             <button
               type="button"
-              onClick={() => setStep("receipt")}
+              onClick={handleNext}
               disabled={!isFormValid}
               className="w-full py-4 rounded-full bg-gradient-to-br from-[#36c7c8] to-[#4398c5] text-white text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
             >
@@ -436,24 +354,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white flex justify-center">
       <div className="w-full max-w-[989px] px-3 sm:px-6 py-8 sm:py-12">
-        <button
-          type="button"
-          onClick={() => setStep("form")}
-          className="flex items-center gap-2 text-[#43c3c8] font-medium mb-8"
-        >
-          <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-            <path
-              d="M17 7H1M1 7L7 1M1 7L7 13"
-              stroke="#43c3c8"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Edit Details
-        </button>
-
-        <div ref={receiptRef} className="bg-white">
+        <div className="bg-white">
           {/* Logo */}
           <div className="flex justify-center mb-16 sm:mb-20">
             <div className="flex items-center gap-3">
@@ -621,22 +522,6 @@ export default function Home() {
 
             <ZigzagBorder edge="bottom" color="#d7d7d7" className="-bottom-[5px]" />
           </section>
-        </div>
-
-        {/* Save / Download */}
-        <div className="mt-10 flex flex-col items-center">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="w-full sm:w-auto px-10 py-4 rounded-full bg-gradient-to-br from-[#36c7c8] to-[#4398c5] text-white text-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-          >
-            {isSaving ? "Saving..." : "Save to Gallery / Download"}
-          </button>
-
-          {saveError ? (
-            <p className="text-red-500 text-sm mt-4">{saveError}</p>
-          ) : null}
         </div>
       </div>
     </main>
