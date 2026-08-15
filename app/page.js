@@ -71,23 +71,6 @@ function BankMark({ bank, heightClass, className = "" }) {
   );
 }
 
-// A fine, low-amplitude stitched line rather than a bold filled band, so it
-// reads as a subtle ticket-perforation accent instead of drawing attention.
-// Uses a plain CSS background gradient (not SVG/canvas) for reliable
-// rendering across browsers and screen densities.
-function ZigzagBorder({ color, edge, className = "" }) {
-  const angle = edge === "top" ? 135 : 45;
-  return (
-    <div
-      className={`absolute left-0 right-0 w-full h-2 ${className}`}
-      style={{
-        background: `linear-gradient(${angle}deg, transparent 3px, ${color} 3px, ${color} 5px, transparent 5px) repeat-x`,
-        backgroundSize: "12px 10px",
-      }}
-    />
-  );
-}
-
 function formatAmountParts(value) {
   const num = Number(value);
   const safe = Number.isFinite(num) ? num : 0;
@@ -113,8 +96,10 @@ function formatDateTime(date) {
 
 export default function Home() {
   const bankMenuRef = useRef(null);
+  const receiptRef = useRef(null);
 
   const [step, setStep] = useState("form");
+  const [isSaving, setIsSaving] = useState(false);
   const [receiverName, setReceiverName] = useState("Ali Hassan");
   const [bankId, setBankId] = useState("bank-alfalah");
   const [isBankMenuOpen, setIsBankMenuOpen] = useState(false);
@@ -156,6 +141,34 @@ export default function Home() {
   const handleNext = () => {
     setTrxDate(new Date());
     setStep("receipt");
+  };
+
+  const handleSave = async () => {
+    if (!receiptRef.current || isSaving) return;
+    setIsSaving(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(receiptRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        windowWidth: document.documentElement.clientWidth,
+        windowHeight: document.documentElement.clientHeight,
+      });
+      const blob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, "image/png")
+      );
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `zindigi-receipt-${Date.now()}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to save receipt image", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (step === "form") {
@@ -353,19 +366,74 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white flex justify-center">
-      <div className="w-full max-w-[989px] px-3 sm:px-6 py-8 sm:py-12">
-        <div className="bg-white">
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={isSaving}
+        aria-label="Save receipt as image"
+        className="fixed top-4 right-4 z-30 w-10 h-10 rounded-full bg-gradient-to-br from-[#36c7c8] to-[#4398c5] text-white shadow-md flex items-center justify-center disabled:opacity-60 hover:opacity-90 transition-opacity"
+      >
+        {isSaving ? (
+          <svg
+            className="w-4 h-4 animate-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              stroke="white"
+              strokeWidth="3"
+              strokeOpacity="0.3"
+            />
+            <path
+              d="M21 12a9 9 0 0 0-9-9"
+              stroke="white"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </svg>
+        ) : (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M8 1.5v9M8 10.5 4.5 7M8 10.5 11.5 7"
+              stroke="white"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M2 12v1.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V12"
+              stroke="white"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </button>
+
+      <div className="w-full max-w-[989px] px-3 sm:px-6 py-4 sm:py-12">
+        <div className="bg-white" ref={receiptRef}>
           {/* Logo */}
-          <div className="flex justify-center mb-16 sm:mb-20">
+          <div className="flex justify-center mb-4 sm:mb-20">
             <div className="flex items-center gap-3">
               <Image
                 src={zindigiLogo}
                 alt="Zindigi"
-                className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl"
+                className="w-9 h-9 sm:w-14 sm:h-14 rounded-xl"
                 priority
               />
 
-              <span className="text-2xl sm:text-3xl font-bold tracking-tight text-black">
+              <span className="text-lg sm:text-3xl font-bold tracking-tight text-black">
                 ZINDIGI
               </span>
             </div>
@@ -373,11 +441,11 @@ export default function Home() {
 
           {/* Success Icon */}
           <div className="flex flex-col items-center">
-            <div className="relative flex items-center justify-center w-32 h-32 sm:w-48 sm:h-48 mb-6 sm:mb-10">
+            <div className="relative flex items-center justify-center w-16 h-16 sm:w-48 sm:h-48 mb-2 sm:mb-10">
               <div className="absolute inset-0 rounded-full bg-[#e8fbfb]" />
-              <div className="relative w-24 h-24 sm:w-36 sm:h-36 rounded-full bg-gradient-to-br from-[#36c7c8] to-[#4398c5] flex items-center justify-center">
+              <div className="relative w-11 h-11 sm:w-36 sm:h-36 rounded-full bg-gradient-to-br from-[#36c7c8] to-[#4398c5] flex items-center justify-center">
                 <svg
-                  className="w-14 h-11 sm:w-[78px] sm:h-[60px]"
+                  className="w-6 h-5 sm:w-[78px] sm:h-[60px]"
                   viewBox="0 0 78 60"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
@@ -394,12 +462,12 @@ export default function Home() {
             </div>
 
             {/* Success Message */}
-            <h1 className="text-[#43c3c8] font-bold text-2xl sm:text-4xl mb-3 sm:mb-8">
+            <h1 className="text-[#43c3c8] font-bold text-lg sm:text-4xl mb-1 sm:mb-8">
               Transfer Successful!
             </h1>
 
             {/* Transaction Info */}
-            <p className="text-[#d87836] text-xs sm:text-xl md:text-2xl font-medium text-center mb-6 sm:mb-12">
+            <p className="text-[#d87836] text-xs sm:text-xl md:text-2xl font-medium text-center mb-3 sm:mb-12">
               {formatDateTime(trxDate)}
               <br className="sm:hidden" />
               <span className="hidden sm:inline">&nbsp; | &nbsp;</span>
@@ -408,12 +476,9 @@ export default function Home() {
           </div>
 
           {/* Amount Card */}
-          <section className="relative bg-[#f3ffff] border-x border-[#78d4d5] px-5 sm:px-12 py-8 sm:py-16 mb-14">
-            <ZigzagBorder edge="top" color="#78d4d5" className="-top-[5px]" />
-            <ZigzagBorder edge="bottom" color="#78d4d5" className="-bottom-[5px]" />
-
+          <section className="relative bg-[#f3ffff] border border-[#78d4d5] px-4 sm:px-12 py-4 sm:py-16 mb-4 sm:mb-14">
             {/* Main Amount */}
-            <div className="text-center mb-6 sm:mb-10">
+            <div className="text-center mb-3 sm:mb-10">
               <div className="text-black leading-none">
                 <span className="text-xl sm:text-4xl font-semibold mr-1">
                   Rs.
@@ -428,10 +493,10 @@ export default function Home() {
             </div>
 
             {/* Dashed Separator */}
-            <div className="border-t-2 border-dashed border-[#58c8ca] mb-5 sm:mb-8" />
+            <div className="border-t-2 border-dashed border-[#58c8ca] mb-3 sm:mb-8" />
 
             {/* Amount */}
-            <div className="space-y-3 sm:space-y-7">
+            <div className="space-y-1.5 sm:space-y-7">
               <div className="flex justify-between items-center text-black gap-3">
                 <span className="text-sm sm:text-2xl font-medium shrink-0">
                   Amount
@@ -451,11 +516,9 @@ export default function Home() {
           </section>
 
           {/* Receiver / Sender Card */}
-          <section className="relative border-x border-[#d7d7d7] px-5 sm:px-12 py-8 sm:py-14">
-            <ZigzagBorder edge="top" color="#d7d7d7" className="-top-[5px]" />
-
+          <section className="relative border border-[#d7d7d7] px-4 sm:px-12 py-4 sm:py-14">
             {/* Receiver Name */}
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-6 sm:mb-12">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-3 sm:mb-12">
               <span className="text-[#b9b9b9] text-sm sm:text-2xl">
                 Receiver Name
               </span>
@@ -465,7 +528,7 @@ export default function Home() {
             </div>
 
             {/* Bank Name */}
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-6 sm:mb-12">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-3 sm:mb-12">
               <span className="text-[#b9b9b9] text-sm sm:text-2xl">
                 Bank Name
               </span>
@@ -475,8 +538,8 @@ export default function Home() {
                   bank={selectedBank}
                   heightClass={
                     selectedBank.logo
-                      ? "h-10 sm:h-12"
-                      : "w-10 h-10 sm:w-11 sm:h-11"
+                      ? "h-7 sm:h-12"
+                      : "w-7 h-7 sm:w-11 sm:h-11"
                   }
                 />
                 {!selectedBank.logo ? (
@@ -488,7 +551,7 @@ export default function Home() {
             </div>
 
             {/* Account Number */}
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-6 sm:mb-12">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-3 sm:mb-12">
               <span className="text-[#b9b9b9] text-sm sm:text-2xl">
                 Account Number
               </span>
@@ -498,10 +561,10 @@ export default function Home() {
             </div>
 
             {/* Middle Separator */}
-            <div className="border-t-2 border-dashed border-[#bdbdbd] mb-6 sm:mb-12" />
+            <div className="border-t-2 border-dashed border-[#bdbdbd] mb-3 sm:mb-12" />
 
             {/* Sender Name */}
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-6 sm:mb-12">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 sm:gap-6 mb-3 sm:mb-12">
               <span className="text-[#b9b9b9] text-sm sm:text-2xl">
                 Sender Name
               </span>
@@ -519,8 +582,6 @@ export default function Home() {
                 0371 4051570
               </span>
             </div>
-
-            <ZigzagBorder edge="bottom" color="#d7d7d7" className="-bottom-[5px]" />
           </section>
         </div>
       </div>
